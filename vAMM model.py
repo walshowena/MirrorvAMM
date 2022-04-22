@@ -1,45 +1,19 @@
 # -*- coding: utf-8 -*-
 import random
+import math
 """
 Created on Wed Feb 23 12:49:24 2022
 
 @author: walsh
 """
 #vAMM example
-
-def pickNum(choice):
-    test = [0,1,2,3,4,5,6,7,8,9]
-    PN = [-1,1]
-    sig = random.choice(PN)
-
-    b = random.choice(test) * 10
-    c = random.choice(test)
-    d = random.choice(test) / 10
-    e = random.choice(test) / 100
-
-    if choice == 1:
-        a = round(b + c + d + e, 2) * sig
-    if choice != 1: 
-        a = round(b + c + d + e, 2)
-    return a
-
-def regulate(inputK):
-    n = 0.1
-    q = 0.1
-    b = -1
-
-    x = inputK/100
-
-    y = -1 * ( n / (x + q) + b ) / 2
-    return y
-
 def transact_normalAMM( assetInput, txType, pooled_mAsset, pooled_UST ): #txType determines buy[1] or sale[2] (of mAsset)
     x = pooled_mAsset
     y = pooled_UST
     k = x * y
     n = assetInput
     if txType == 1: #if tx type is a purchase of mAsset (using UST)
-        if assetInput > 0:
+        if assetInput < 0:
             tx = 'Buys mAsset'
         else:
             tx = 'Sell mAsset'   
@@ -48,7 +22,7 @@ def transact_normalAMM( assetInput, txType, pooled_mAsset, pooled_UST ): #txType
         x_H = x - H
         return H, x_H, y_n, tx
     if txType == 2: #if tx type is a sale of mAsset (in exchange for UST)
-        if assetInput > 0:
+        if assetInput < 0:
             tx = 'Sell mAsset'
         else:
             tx = 'Buys mAsset'    
@@ -96,44 +70,99 @@ X = pooled_mAsset
 Y = pooled_UST
 USTCount = 10
 mAssetCount = 10
-oraclePrice = 12
+oraclePrice = 9
 
-# out, pool_mAsset, pool_UST, tx = transact_normalAMM(USTCount, 1, X, Y) #Denominated in UST
-# print(out, pool_mAsset, pool_UST, tx)
+MCR = 1.5
+dY = 1000
 
-# out, pool_mAsset, pool_UST, tx = transact_normalAMM(mAssetCount, 2, X, Y) #Denominated in mAsset
-# print(out, pool_mAsset, pool_UST, tx)
+CDPn = MCR * dY
 
-
-# out, pool_mAsset, pool_UST, tx, w, a = transact_DynamicAMM(USTCount, 1, X, Y, oraclePrice)
-# print(out, pool_mAsset, pool_UST, tx, w, a)
-# print(pool_UST / pool_mAsset, pooled_mAsset_price)
-# print(USTCount / out, "mAsset_price")
-
-# out, pool_mAsset, pool_UST, tx, w, a = transact_DynamicAMM(mAssetCount, 2, X, Y, oraclePrice)
-# print(out, pool_mAsset, pool_UST, tx, w, a)
-# print(pool_UST / pool_mAsset, pooled_mAsset_price)
-# print(out / mAssetCount, "mAsset_price")
-oracleN = []
-
+CumulativeCDPCost = 0
+profit = 0
 for each in range(0,100):
-    g = 0
-    p = 0
-    sigs = random.choice([-1,1])
-    a = regulate(pickNum(0)) / 10 * sigs
-
-    deltaUnit = pickNum(1)
-    out, pool_mAsset, pool_UST, tx = transact_normalAMM(deltaUnit,1,X,Y)
-    #print(tx,"\t" ,delta, out, pool_mAsset, pool_UST)
-    X = pool_mAsset
-    Y = pool_UST
-    g = Y / X * ( 1 + a )
-    p = Y / X
-    oracleN.append( [g - p, a] )
+    profit = 0
     
-print((Y / X / oraclePrice - 1), X, Y)
+#try several conditions 
+### Part 1 - AMM vs Mint AMM idea
+
+##NEW IDEA
+"""
+Burn MIR for mAsset_I
+mAsset_I(price) == Oracle Price
+(NOT SWAPPABLE AND IS LOCKED IN CONTRACT EXECUTION)
+mAsset_I used to create CDP of original mAsset
+Collateral multiplier (for new positions) increases as Peg is restored.
+Negative rate is imposed when peg far gone (>20%)
+Can liquidate to get more mAsset_I back vs mAsset depending on 'funding' 
+Use mAsset_I to mint 
+
+"""
+X = 100000
+Y = 1000000
+dY = 1000
+O_n = 1000
+MCR = 1.5
+
+"""
+A)
+Constant O_n, No Buy pressure   
+Constant O_n, Buy Pressure < dY
+Constant O_n, Buy Pressure = dY
+Constant O_n, Buy Pressure > dY
+
+B)
+Linear 9 - 11 O_n, No Buy pressure
+Linear 9 - 11 O_n, Buy Pressure < dY
+Linear 9 - 11 O_n, Buy Pressure = dY
+Linear 9 - 11 O_n, Buy Pressure > dY
+
+Part 2
+"""
+
+x1, y1, O_n1 = 100000, 1000000, 9
+x2, y2, O_n2 = 200000, 2000000, 10
+x3, y3, O_n3 = 300000, 3000000, 11
 
 
-print(a)
-print(oracleN)
+
+"""
+A)
+Constant O_n, No Buy pressure   
+Constant O_n, Buy Pressure < dY
+Constant O_n, Buy Pressure = dY
+Constant O_n, Buy Pressure > dY
+
+B)
+Invert O_n, No Buy pressure
+Invert 9 - 11 O_n, Buy Pressure < dY
+Invert 9 - 11 O_n, Buy Pressure = dY
+Invert 9 - 11 O_n, Buy Pressure > dY
+"""    
+    
+def transact_vAMM( assetInput, txType, pooled_mAsset, pooled_UST, oraclePrice, tx_count ):
+    x = pooled_mAsset
+    y = pooled_UST
+    k = x * y
+    n = assetInput
+    ref_p = oraclePrice
+    delta = 0
+    cooldown = 5
+    
+
+    for each in range(0,tx_count+cooldown+1):
+        if each <= tx_count:
+            output = transact_DynamicAMM(n, txType, x, y, ref_p)
+            delta += output[0]
+            x = output[1]
+            y = output[2]
+            w = output[4]
+            a = output[5]            
+        balancer = delta / cooldown
+        delta -= balancer
+        x += balancer
+        y = y - balancer * ref_p
+        print(delta, x, y, w, a, balancer)
+    
+    
+transact_vAMM(10, 1, 100, 1000, 10, 10)
     
