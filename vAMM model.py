@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import random
 import math
+import matplotlib.pyplot as plt
 """
 Created on Wed Feb 23 12:49:24 2022
 
@@ -61,29 +62,125 @@ def transact_DynamicAMM( assetInput, txType, pooled_mAsset, pooled_UST, oraclePr
         y_H = y - H
         return H, x_n, y_H, tx, w, a
 
-pooled_mAsset = 100
-pooled_UST = 1000
+def transact_vAMM( assetInput, txType, tx_count, pooled_mAsset, pooled_UST, oraclePrice):
+    x = pooled_mAsset
+    y = x**2 / x * oraclePrice
 
-pooled_mAsset_price = pooled_UST / pooled_mAsset
-
-X = pooled_mAsset
-Y = pooled_UST
-USTCount = 10
-mAssetCount = 10
-oraclePrice = 9
-
-MCR = 1.5
-dY = 1000
-
-CDPn = MCR * dY
-
-CumulativeCDPCost = 0
-profit = 0
-for each in range(0,100):
-    profit = 0
+    ref_p = oraclePrice
+    n = assetInput
+    delta = 0
+    cooldown = 10
+    total_x = [x]
+    data = []
+    #DEBUG / graph related
+    lead = cooldown
+    tx = 0
+    tx_f = 0
+    summ = 0
     
+    for each in range(0,tx_count):
+        if each < tx_count:
+            output = transact_DynamicAMM(n, txType, x, y, ref_p)
+            if delta + output[0] > pooled_mAsset:
+                x = x
+                y = y
+                w = w
+                a = a
+                tx += 1
+                tx_f += 1
+            else:
+                delta += output[0]
+                #print(x)
+                x = output[1]
+                #print(x)
+                y = output[2]
+                w = output[4]
+                a = output[5]  
+                tx += 1
+                summ += n
+        balancer = delta / cooldown 
+        delta -= balancer
+        data.append( [x, y, w, a, delta, balancer])
+        y = (x + balancer)**2 / x * ref_p
+        x += balancer
+    end = [data]
+    return end
+ 
+    
+def mint_mAsset(UST,MCR,oraclePrice,Cushion):
+    a_CR = MCR * (1 + Cushion) 
+    mAsset = UST / a_CR / oraclePrice
+    CR = UST / (mAsset * oraclePrice)
+    value = mAsset * oraclePrice
+    return mAsset, value, CR,  UST, oraclePrice
+    
+    
+def burn_mAsset(position,oraclePrice,MCR,closing_fee,L_discount):
+    mAsset = position[0]
+    collateral = position[3]
+    current_value = mAsset * oraclePrice
+    current_CR = collateral / current_value
+    liqd_col = 0
+    r_collateral = collateral
+    if current_CR < MCR :
+        liq_discount = math.min(current_CR - 1,L_discount)
+        
+        liqd_col = collateral
+    else:
+
+    return liqd_col 
+
+   
 #try several conditions 
 ### Part 1 - AMM vs Mint AMM idea
+
+#Define Oracle
+
+duration = 1000 #duration of test in blocks (in seconds is duration * 6) if 1000 -> 100 minutes
+Oracle = []
+for each in range(1,1+duration,1):
+    Oracle.append(each/(duration/10))
+print(Oracle)
+#Define Global variables
+
+
+cooldown = 10 #1 minute
+MCR = 1.5
+price_cushion = .5 #percent change to prevent liquidation
+discount_rate = .2 #percent discount for liquidation
+CDP_closure_fee = .015 #percent fee levied on minted mAsset value upon liquidation or CDP closure
+swap_fee = 0.03 #percent fee levied on any swap transaction
+X_i = 1000
+Y_i = 10000
+p_i = Y_i / X_i
+
+#NORMAL AMM
+p = p_i
+x = X_i
+y = Y_i
+for each in Oracle:
+    if p > each:
+        x = 0
+    elif p < each:
+        x = 1
+
+
+out = mint_mAsset(100, 1.5, 10, .5)
+print(out)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ##NEW IDEA
 """
@@ -98,7 +195,7 @@ Use mAsset_I to mint
 
 """
 X = 100000
-Y = 1000000
+Y = 1200000
 dY = 1000
 O_n = 1000
 MCR = 1.5
@@ -138,31 +235,10 @@ Invert 9 - 11 O_n, Buy Pressure < dY
 Invert 9 - 11 O_n, Buy Pressure = dY
 Invert 9 - 11 O_n, Buy Pressure > dY
 """    
-    
-def transact_vAMM( assetInput, txType, pooled_mAsset, pooled_UST, oraclePrice, tx_count ):
-    x = pooled_mAsset
-    y = pooled_UST
-    k = x * y
-    n = assetInput
-    ref_p = oraclePrice
-    delta = 0
-    cooldown = 5
-    
 
-    for each in range(0,tx_count+cooldown+1):
-        if each <= tx_count:
-            output = transact_DynamicAMM(n, txType, x, y, ref_p)
-            delta += output[0]
-            x = output[1]
-            y = output[2]
-            w = output[4]
-            a = output[5]            
-        balancer = delta / cooldown
-        delta -= balancer
-        x += balancer
-        y = y - balancer * ref_p
-        print(delta, x, y, w, a, balancer)
-    
-    
-transact_vAMM(10, 1, 100, 1000, 10, 10)
-    
+"""
+fig, ax1 = plt.subplots()
+ax1.plot(test[0],marker = '.', color = 'red',)
+plt.xlabel("Block")
+plt.ylabel("mAsset")
+"""
