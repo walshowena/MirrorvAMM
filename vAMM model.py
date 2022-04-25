@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import random
 import math
+import numpy as np
 import matplotlib.pyplot as plt
 """
 Created on Wed Feb 23 12:49:24 2022
@@ -19,9 +20,31 @@ def gaus_rand(mu,sigma,tx_count):
     k = 0
     for each in nums:
         k += each
-        out.append(k)
+        out.append(each)
     return out
 
+def build_Oracle(dynamic,start,minORmax,blockcount,variance=0):
+    
+    a = np.linspace(start,minORmax,blockcount)
+    a_n = []
+    b_n = []
+    for each in a:
+        a_n.append(each)
+        b_n.append(each)
+    b_n.remove(minORmax)
+    b_n.reverse()
+    for each in b_n:
+        a_n.append(each)
+    
+    if dynamic == 1:
+        c_n = []
+        for each in a_n:
+            out = gaus_rand(each,variance,1)
+            c_n.append(out[0])  
+        a_n = c_n
+        
+    return a_n
+    
 
 #vAMM example
 def transact_normalAMM( assetInput, txType, pooled_mAsset, pooled_UST ): #txType determines buy[1] or sale[2] (of mAsset)
@@ -139,9 +162,9 @@ def burn_mAsset(position,oraclePrice,MCR,closing_fee,L_discount):
     liqd_col = 0
     r_collateral = collateral
     if current_CR < MCR :
-        liq_discount = math.min(current_CR - 1,L_discount)
+        liq_discount = min(current_CR - 1,L_discount)
         
-        liqd_col = collateral
+        liqd_col = min()
     else:
         kk = 0
     return liqd_col 
@@ -161,13 +184,11 @@ print(top_test, bot_test)
 Oracle = []
 
 #^ or \/
-for each in range(50,101,1):
-    Oracle.append(each / 10)
-Oracle.reverse()
-for each in range(50,101,1):
-    Oracle.append(each / 10)
-#for each in range(1000,1501,1):
-#    Oracle.append(each / 100)
+
+
+
+
+Oracle = build_Oracle(0,10,8,50)
     
 #print(Oracle)
 #Define Global variables
@@ -179,12 +200,14 @@ price_cushion = .5 #percent change to prevent liquidation
 discount_rate = .2 #percent discount for liquidation
 CDP_closure_fee = .015 #percent fee levied on minted mAsset value upon liquidation or CDP closure
 swap_fee = 0.003 #percent fee levied on any swap transaction
-Per_block_value_used = 10 #in UST
+Per_block_value_used = 100 #in UST
 X_i = 1000
 Y_i = 10000
 cushion = 1
 static_oracle = 10
 p_i = Y_i / X_i
+
+
 
 #NORMAL AMM w/ stable oracle
 p = p_i
@@ -201,13 +224,18 @@ test = 0
 ret_UST = 0
 minted = 0
 minted_Cost = 0
+tx_list = gaus_rand(0, 50, 1000)
 Oracle.reverse()
-for each in Oracle:
+for each in range(0,len(Oracle)):
+    
     p = y / x
+    x_con.append(x)
+    y_con.append(y)
+    p_con.append(p)
     #print(p)
-    print(each)
-    if p > each:
-        out = mint_mAsset(d, MCR, each, c)
+    #print(each)
+    if p > Oracle[each]:
+        out = mint_mAsset(d, MCR, Oracle[each], c)
         minted += out[1]
         test += d
         ret = transact_normalAMM(out[0], 2, x, y)
@@ -217,32 +245,66 @@ for each in Oracle:
         y = ret[2]
 
 
-    elif p < each:
-        itit = 9
-    x_con.append(x)
-    y_con.append(y)
-    p_con.append(p)
+    elif p < Oracle[each]:
+        for element in pos:
+            value = element[3] / (element[0] * each)
+            if value < MCR:
+                re_buy = transact_normalAMM(-element[0], 2, x, y)
+                #print(re_buy)
+                x = re_buy[1]
+                y = re_buy[2]
+                pos.remove(element)
+        
+        
+    randomInteraction = transact_normalAMM(tx_list[each], 1, x, y)
+    #print(randomInteraction)
+    x = randomInteraction[1]
+    y = randomInteraction[2] 
     
-    
+print(pos)  
 
+
+
+fig, (ax1,ax2) = plt.subplots(2,sharex=True,sharey=False)
+ax1.plot(y_con,color = 'r',label = "Pooled USD")
+ax1.grid()
+ax1.set_ylabel("USD")
+ax1.legend(loc = 'best')
+ax2.plot(x_con, color = 'b',label = "Pooled mAsset")
+ax2.grid()
+ax2.set_ylabel("mAsset")
+ax2.set_xlabel("Block")
+ax1.set_title("Pool Concentration: mAsset vs. USD")
+ax2.legend(loc = 'best')
 
 
 fig, ax1 = plt.subplots()
-ax1.plot(p_con, color = 'red')
-#ax2 = ax1.twinx()
-ax1.plot(Oracle, color = 'blue')
-plt.xlabel("Block")
-plt.ylabel("Price")
+ax1.plot(Oracle,color = 'r', label = "Oracle Price")
+ax1.grid()
+ax1.set_ylabel("USD")
+ax1.plot(p_con, color = 'b', label = "Pool Price")
+plt.legend(loc = 'best')
+ax1.set_title("Price Comparison: Oracle vs. Pool")
 
 
 
-out = mint_mAsset(100, 1.5, 10, .5)
-#print(out)
+#dvAMM + AMM
 
-
-
-
-
+"""
+fig, ax1 = plt.subplots()
+ax1.plot(x_con, color = 'red',label = "mAsset")
+ax1.set_xlabel("Block")
+ax1.set_ylabel("mAsset")
+plt.grid()
+plt.legend(loc = 'upper right')
+ax2 = ax1.twinx()
+ax2.plot(y_con, color = 'blue',label = "USD")
+ax2.set_ylabel("USD")
+plt.legend(loc = 'upper left')
+plt.grid()
+fig.suptitle("Pool Concentration: mAsset vs. USD")
+fig.savefig("pool_Con.jpg")
+"""
 
 
 
