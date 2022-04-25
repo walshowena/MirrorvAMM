@@ -7,6 +7,22 @@ Created on Wed Feb 23 12:49:24 2022
 
 @author: walsh
 """
+def gaus_rand(mu,sigma,tx_count):
+    nums = [] 
+    mu = mu
+    sigma = sigma
+        
+    for i in range(tx_count): 
+        temp = random.gauss(mu, sigma) 
+        nums.append(temp) 
+    out = []
+    k = 0
+    for each in nums:
+        k += each
+        out.append(k)
+    return out
+
+
 #vAMM example
 def transact_normalAMM( assetInput, txType, pooled_mAsset, pooled_UST ): #txType determines buy[1] or sale[2] (of mAsset)
     x = pooled_mAsset
@@ -14,7 +30,7 @@ def transact_normalAMM( assetInput, txType, pooled_mAsset, pooled_UST ): #txType
     k = x * y
     n = assetInput
     if txType == 1: #if tx type is a purchase of mAsset (using UST)
-        if assetInput < 0:
+        if assetInput > 0:
             tx = 'Buys mAsset'
         else:
             tx = 'Sell mAsset'   
@@ -23,7 +39,7 @@ def transact_normalAMM( assetInput, txType, pooled_mAsset, pooled_UST ): #txType
         x_H = x - H
         return H, x_H, y_n, tx
     if txType == 2: #if tx type is a sale of mAsset (in exchange for UST)
-        if assetInput < 0:
+        if assetInput > 0:
             tx = 'Sell mAsset'
         else:
             tx = 'Buys mAsset'    
@@ -32,7 +48,7 @@ def transact_normalAMM( assetInput, txType, pooled_mAsset, pooled_UST ): #txType
         y_H = y - H
         return H, x_n, y_H, tx
     
-def transact_DynamicAMM( assetInput, txType, pooled_mAsset, pooled_UST, oraclePrice ): #txType determines buy or sale (of mAsset))
+def transact_DynamicAMM( assetInput, txType, pooled_mAsset, pooled_UST, oraclePrice, swapFee): #txType determines buy or sale (of mAsset))
     x = pooled_mAsset
     y = pooled_UST
     k = x * y
@@ -62,7 +78,7 @@ def transact_DynamicAMM( assetInput, txType, pooled_mAsset, pooled_UST, oraclePr
         y_H = y - H
         return H, x_n, y_H, tx, w, a
 
-def transact_vAMM( assetInput, txType, tx_count, pooled_mAsset, pooled_UST, oraclePrice):
+def transact_vAMM( assetInput, txType, tx_count, pooled_mAsset, pooled_UST, oraclePrice,swapFee):
     x = pooled_mAsset
     y = x**2 / x * oraclePrice
 
@@ -80,7 +96,7 @@ def transact_vAMM( assetInput, txType, tx_count, pooled_mAsset, pooled_UST, orac
     
     for each in range(0,tx_count):
         if each < tx_count:
-            output = transact_DynamicAMM(n, txType, x, y, ref_p)
+            output = transact_DynamicAMM(n, txType, x, y, ref_p,swapFee)
             if delta + output[0] > pooled_mAsset:
                 x = x
                 y = y
@@ -127,7 +143,7 @@ def burn_mAsset(position,oraclePrice,MCR,closing_fee,L_discount):
         
         liqd_col = collateral
     else:
-
+        kk = 0
     return liqd_col 
 
    
@@ -136,37 +152,92 @@ def burn_mAsset(position,oraclePrice,MCR,closing_fee,L_discount):
 
 #Define Oracle
 
-duration = 1000 #duration of test in blocks (in seconds is duration * 6) if 1000 -> 100 minutes
+duration = 100.0 #duration of test in blocks (in seconds is duration * 6) if 1000 -> 100 minutes
+baseOracle = 10
+p_variation = 0.5 #percent to adjust Oracle to relative to baseOracle (both + and -)
+top_test = int((baseOracle * ( 1 + p_variation)) * duration + 1)
+bot_test = int((baseOracle * ( 1 - p_variation)) * duration)
+print(top_test, bot_test)
 Oracle = []
-for each in range(1,1+duration,1):
-    Oracle.append(each/(duration/10))
-print(Oracle)
+
+#^ or \/
+for each in range(50,101,1):
+    Oracle.append(each / 10)
+Oracle.reverse()
+for each in range(50,101,1):
+    Oracle.append(each / 10)
+#for each in range(1000,1501,1):
+#    Oracle.append(each / 100)
+    
+#print(Oracle)
 #Define Global variables
 
-
+Per_block_value_used = 10 #in UST
 cooldown = 10 #1 minute
 MCR = 1.5
 price_cushion = .5 #percent change to prevent liquidation
 discount_rate = .2 #percent discount for liquidation
 CDP_closure_fee = .015 #percent fee levied on minted mAsset value upon liquidation or CDP closure
-swap_fee = 0.03 #percent fee levied on any swap transaction
+swap_fee = 0.003 #percent fee levied on any swap transaction
+Per_block_value_used = 10 #in UST
 X_i = 1000
 Y_i = 10000
+cushion = 1
+static_oracle = 10
 p_i = Y_i / X_i
 
-#NORMAL AMM
+#NORMAL AMM w/ stable oracle
 p = p_i
 x = X_i
 y = Y_i
+O = static_oracle
+d = Per_block_value_used
+c = cushion
+pos = []
+x_con = [x]
+y_con = [y]
+p_con = [p]
+test = 0
+ret_UST = 0
+minted = 0
+minted_Cost = 0
+Oracle.reverse()
 for each in Oracle:
+    p = y / x
+    #print(p)
+    print(each)
     if p > each:
-        x = 0
+        out = mint_mAsset(d, MCR, each, c)
+        minted += out[1]
+        test += d
+        ret = transact_normalAMM(out[0], 2, x, y)
+        ret_UST += ret[0]
+        pos.append(out)
+        x = ret[1]
+        y = ret[2]
+
+
     elif p < each:
-        x = 1
+        itit = 9
+    x_con.append(x)
+    y_con.append(y)
+    p_con.append(p)
+    
+    
+
+
+
+fig, ax1 = plt.subplots()
+ax1.plot(p_con, color = 'red')
+#ax2 = ax1.twinx()
+ax1.plot(Oracle, color = 'blue')
+plt.xlabel("Block")
+plt.ylabel("Price")
+
 
 
 out = mint_mAsset(100, 1.5, 10, .5)
-print(out)
+#print(out)
 
 
 
@@ -194,11 +265,11 @@ Can liquidate to get more mAsset_I back vs mAsset depending on 'funding'
 Use mAsset_I to mint 
 
 """
-X = 100000
-Y = 1200000
-dY = 1000
-O_n = 1000
-MCR = 1.5
+#X = 100000
+#Y = 1200000
+#dY = 1000
+#O_n = 1000
+#MCR = 1.5
 
 """
 A)
@@ -216,9 +287,9 @@ Linear 9 - 11 O_n, Buy Pressure > dY
 Part 2
 """
 
-x1, y1, O_n1 = 100000, 1000000, 9
-x2, y2, O_n2 = 200000, 2000000, 10
-x3, y3, O_n3 = 300000, 3000000, 11
+#x1, y1, O_n1 = 100000, 1000000, 9
+#x2, y2, O_n2 = 200000, 2000000, 10
+#x3, y3, O_n3 = 300000, 3000000, 11
 
 
 
