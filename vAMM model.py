@@ -142,10 +142,12 @@ def transact_vAMM( assetInput, txType, tx_count, pooled_mAsset, pooled_UST, orac
         data.append( [x, y, w, a, delta, balancer])
         y = (x + balancer)**2 / x * ref_p
         x += balancer
-    end = [data]
+    end = data
     return end
  
-    
+
+
+   
 def mint_mAsset(UST,MCR,oraclePrice,Cushion):
     a_CR = MCR * (1 + Cushion) 
     mAsset = UST / a_CR / oraclePrice
@@ -164,7 +166,7 @@ def burn_mAsset(position,oraclePrice,MCR,closing_fee,L_discount):
     if current_CR < MCR :
         liq_discount = min(current_CR - 1,L_discount)
         
-        liqd_col = min()
+        liqd_col = min(mAsset / (1-liq_discount) * oraclePrice,collateral)
     else:
         kk = 0
     return liqd_col 
@@ -188,22 +190,21 @@ Oracle = []
 
 
 
-Oracle = build_Oracle(0,10,8,50)
+Oracle = build_Oracle(1,11,9,50,.05)
     
 #print(Oracle)
 #Define Global variables
 
 Per_block_value_used = 10 #in UST
 cooldown = 10 #1 minute
-MCR = 1.5
-price_cushion = .5 #percent change to prevent liquidation
+MCR = 1.2
+price_cushion = .1 #percent change to prevent liquidation
 discount_rate = .2 #percent discount for liquidation
 CDP_closure_fee = .015 #percent fee levied on minted mAsset value upon liquidation or CDP closure
 swap_fee = 0.003 #percent fee levied on any swap transaction
 Per_block_value_used = 100 #in UST
 X_i = 1000
 Y_i = 10000
-cushion = 1
 static_oracle = 10
 p_i = Y_i / X_i
 
@@ -215,7 +216,7 @@ x = X_i
 y = Y_i
 O = static_oracle
 d = Per_block_value_used
-c = cushion
+c = price_cushion
 pos = []
 x_con = [x]
 y_con = [y]
@@ -224,7 +225,7 @@ test = 0
 ret_UST = 0
 minted = 0
 minted_Cost = 0
-tx_list = gaus_rand(0, 50, 1000)
+tx_list = gaus_rand(0, 50, 100)
 Oracle.reverse()
 for each in range(0,len(Oracle)):
     
@@ -247,23 +248,29 @@ for each in range(0,len(Oracle)):
 
     elif p < Oracle[each]:
         for element in pos:
-            value = element[3] / (element[0] * each)
+            value = element[3] / (element[0] * Oracle[each])
+            #print(value)
+            #print(element)
+            #print(Oracle[each])
             if value < MCR:
                 re_buy = transact_normalAMM(-element[0], 2, x, y)
                 #print(re_buy)
                 x = re_buy[1]
                 y = re_buy[2]
-                pos.remove(element)
-        
-        
+                liqd_coll = burn_mAsset(element, each, MCR, CDP_closure_fee, discount_rate)
+                
+                if liqd_coll != element[3]:
+                    pos[pos.index(element)] = mint_mAsset(element[3]-liqd_coll, MCR, each, 0.001)
+                else:
+                    pos.remove(element)
+                #print(element)
+                
     randomInteraction = transact_normalAMM(tx_list[each], 1, x, y)
     #print(randomInteraction)
     x = randomInteraction[1]
     y = randomInteraction[2] 
     
-print(pos)  
-
-
+#print(pos)  
 
 fig, (ax1,ax2) = plt.subplots(2,sharex=True,sharey=False)
 ax1.plot(y_con,color = 'r',label = "Pooled USD")
@@ -282,9 +289,70 @@ fig, ax1 = plt.subplots()
 ax1.plot(Oracle,color = 'r', label = "Oracle Price")
 ax1.grid()
 ax1.set_ylabel("USD")
+ax1.set_xlabel("Block")
 ax1.plot(p_con, color = 'b', label = "Pool Price")
 plt.legend(loc = 'best')
 ax1.set_title("Price Comparison: Oracle vs. Pool")
+#ax1.plot(tx_list)
+
+
+
+#dvAMM integration
+x_2 = X_i
+y_2 = Y_i
+p_2 = p_i
+x_con_2 = [x_2]
+y_con_2 = [y_2]
+p_con_2 = [p_2]
+for each in range(0,len(Oracle)):
+    p_2 = y_2 / x_2
+    x_con_2.append(x_2)
+    y_con_2.append(y_2)
+    p_con_2.append(p_2)
+    if p_2 > Oracle[each]:
+        out = transact_vAMM(d, 1, 1, x_2, y_2, Oracle[each], 0)
+        out_2 = transact_normalAMM(out[0][4], 2, x_2, y_2)
+        #print(out_2)
+        x_2 = out_2[1]
+        y_2 = out_2[2]
+    
+    elif p_2 < Oracle[each]:
+        out = transact_vAMM(-d, 1, 1, x_2, y_2, Oracle[each], 0)
+        out_2 = transact_normalAMM(out[0][4], 2, x_2, y_2)
+        print(out_2)
+        x_2 = out_2[1]
+        y_2 = out_2[2]
+    
+    randomInteraction = transact_normalAMM(tx_list[each], 1, x_2, y_2)
+    #print(randomInteraction)
+    x_2 = randomInteraction[1]
+    y_2 = randomInteraction[2] 
+
+fig, (ax1,ax2) = plt.subplots(2,sharex=True,sharey=False)
+ax1.plot(y_con_2,color = 'r',label = "Pooled USD")
+ax1.grid()
+ax1.set_ylabel("USD")
+ax1.legend(loc = 'best')
+ax2.plot(x_con_2, color = 'b',label = "Pooled mAsset")
+ax2.grid()
+ax2.set_ylabel("mAsset")
+ax2.set_xlabel("Block")
+ax1.set_title("Pool Concentration: mAsset vs. USD")
+ax2.legend(loc = 'best')
+
+
+fig, ax1 = plt.subplots()
+ax1.plot(Oracle,color = 'r', label = "Oracle Price")
+ax1.grid()
+ax1.set_ylabel("USD")
+ax1.set_xlabel("Block")
+ax1.plot(p_con_2, color = 'b', label = "Pool Price")
+plt.legend(loc = 'best')
+ax1.set_title("Price Comparison: Oracle vs. Pool")
+#ax1.plot(tx_list)
+
+
+
 
 
 
