@@ -272,29 +272,6 @@ for each in range(0,len(Oracle)):
     
 #print(pos)  
 
-fig, (ax1,ax2) = plt.subplots(2,sharex=True,sharey=False)
-ax1.plot(y_con,color = 'r',label = "Pooled USD")
-ax1.grid()
-ax1.set_ylabel("USD")
-ax1.legend(loc = 'best')
-ax2.plot(x_con, color = 'b',label = "Pooled mAsset")
-ax2.grid()
-ax2.set_ylabel("mAsset")
-ax2.set_xlabel("Block")
-ax1.set_title("Pool Concentration: mAsset vs. USD")
-ax2.legend(loc = 'best')
-
-
-fig, ax1 = plt.subplots()
-ax1.plot(Oracle,color = 'r', label = "Oracle Price")
-ax1.grid()
-ax1.set_ylabel("USD")
-ax1.set_xlabel("Block")
-ax1.plot(p_con, color = 'b', label = "Pool Price")
-plt.legend(loc = 'best')
-ax1.set_title("Price Comparison: Oracle vs. Pool")
-#ax1.plot(tx_list)
-
 
 
 #dvAMM integration
@@ -304,29 +281,90 @@ p_2 = p_i
 x_con_2 = [x_2]
 y_con_2 = [y_2]
 p_con_2 = [p_2]
+profit = 0
+prof_con_2 = [profit]
 for each in range(0,len(Oracle)):
     p_2 = y_2 / x_2
     x_con_2.append(x_2)
     y_con_2.append(y_2)
     p_con_2.append(p_2)
-    if p_2 > Oracle[each]:
+    if p_2 > Oracle[each] and p_2 / Oracle[each] > 1.03:
         out = transact_vAMM(d, 1, 1, x_2, y_2, Oracle[each], 0)
-        out_2 = transact_normalAMM(out[0][4], 2, x_2, y_2)
-        #print(out_2)
+        dd = out[0][4] + out[0][5]
+
+        out_2 = transact_normalAMM(dd, 2, x_2, y_2)
+        profit += out_2[0] - d 
+        print(out_2[0],d)
+        prof_con_2.append(profit)        
+
         x_2 = out_2[1]
         y_2 = out_2[2]
     
-    elif p_2 < Oracle[each]:
+    elif p_2 < Oracle[each]and p_2 / Oracle[each] < 0.97:
         out = transact_vAMM(-d, 1, 1, x_2, y_2, Oracle[each], 0)
-        out_2 = transact_normalAMM(out[0][4], 2, x_2, y_2)
-        print(out_2)
+        dd = out[0][4] + out[0][5]
+        out_2 = transact_normalAMM(dd, 2, x_2, y_2)
+        profit += d + out_2[0]   
+        prof_con_2.append(profit)
         x_2 = out_2[1]
         y_2 = out_2[2]
+    else:
+        prof_con_2.append(profit + 0)
     
     randomInteraction = transact_normalAMM(tx_list[each], 1, x_2, y_2)
     #print(randomInteraction)
     x_2 = randomInteraction[1]
     y_2 = randomInteraction[2] 
+
+
+fig, (ax1,ax2) = plt.subplots(2,sharex=True,sharey=False)
+ax1.plot(y_con,color = 'r',label = "Pooled USD (Normal AMM)")
+ax1.plot(y_con_2,color = 'purple', label = "Pooled USD (dvAMM + AMM)")
+ax1.grid()
+ax1.set_ylabel("USD")
+ax1.legend(loc = 'best')
+ax2.plot(x_con, color = 'b',label = "Pooled mAsset (Normal AMM)")
+ax2.plot(x_con_2, color = 'orange', label = "Pooled mAsset (dvAMM + AMM)")
+ax2.grid()
+ax2.set_ylabel("mAsset")
+ax2.set_xlabel("Block")
+ax1.set_title("Pool Concentration: mAsset vs. USD")
+ax2.legend(loc = 'best')
+
+
+fig, ax1 = plt.subplots()
+ax1.plot(Oracle,color = 'black', label = "Oracle Price")
+ax1.grid()
+ax1.set_ylabel("USD")
+ax1.set_xlabel("Block")
+ax1.plot(p_con, color = 'cyan', label = "Pool Price (Normal AMM)")
+
+ax1.plot(p_con_2, color = 'plum', label = "Pool Price (dvAMM + AMM)")
+plt.legend(loc = 'best')
+ax1.set_title("Price Comparison: Oracle vs. Pool")
+#ax1.plot(tx_list)
+
+fig, ax1 = plt.subplots()
+ax1.plot(prof_con_2,color = "g")
+ax1.set_xlabel("Block")
+ax1.set_ylabel("USD")
+ax1.grid()
+ax1.set_title("Cumulative Arb Profits in USD")
+
+#dvAMM + AMM
+
+"""
+fig, ax1 = plt.subplots()
+ax1.plot(x_con, color = 'red',label = "mAsset")
+ax1.set_xlabel("Block")
+ax1.set_ylabel("mAsset")
+plt.grid()
+plt.legend(loc = 'upper right')
+ax2.set_ylabel("USD")
+plt.legend(loc = 'upper left')
+plt.grid()
+fig.suptitle("Pool Concentration: mAsset vs. USD")
+fig.savefig("pool_Con.jpg")
 
 fig, (ax1,ax2) = plt.subplots(2,sharex=True,sharey=False)
 ax1.plot(y_con_2,color = 'r',label = "Pooled USD")
@@ -343,6 +381,8 @@ ax2.legend(loc = 'best')
 
 fig, ax1 = plt.subplots()
 ax1.plot(Oracle,color = 'r', label = "Oracle Price")
+ax2 = ax1.twinx()
+ax2.plot(p_con_2,color = 'orange')
 ax1.grid()
 ax1.set_ylabel("USD")
 ax1.set_xlabel("Block")
@@ -350,28 +390,6 @@ ax1.plot(p_con_2, color = 'b', label = "Pool Price")
 plt.legend(loc = 'best')
 ax1.set_title("Price Comparison: Oracle vs. Pool")
 #ax1.plot(tx_list)
-
-
-
-
-
-
-#dvAMM + AMM
-
-"""
-fig, ax1 = plt.subplots()
-ax1.plot(x_con, color = 'red',label = "mAsset")
-ax1.set_xlabel("Block")
-ax1.set_ylabel("mAsset")
-plt.grid()
-plt.legend(loc = 'upper right')
-ax2 = ax1.twinx()
-ax2.plot(y_con, color = 'blue',label = "USD")
-ax2.set_ylabel("USD")
-plt.legend(loc = 'upper left')
-plt.grid()
-fig.suptitle("Pool Concentration: mAsset vs. USD")
-fig.savefig("pool_Con.jpg")
 """
 
 
