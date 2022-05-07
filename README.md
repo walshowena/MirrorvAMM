@@ -28,4 +28,8 @@ Manipulate any variable in 'build oracle' or 'define global variables' to change
 - number of transactions to test
 - oracle conditions
 - CDP variables such as liquidation discount and user risk tolerance
-After the desired parameters are set, run the code to build plots that you can use to visualize the behavior of the set parameters.
+After the desired parameters are set, run the code to build plots that you can use to visualize the behavior of the set parameters. See below some examples.
+
+![Figure 2022-04-25 090506](https://user-images.githubusercontent.com/102979899/167237484-b49377ec-b1e8-4771-9a8d-5cc985df1c9b.png)
+![Figure 2022-04-25 090523](https://user-images.githubusercontent.com/102979899/167237486-1cb3af27-ac5a-44d4-a2b1-09654580eb77.png)
+![Figure 2022-04-25 090531](https://user-images.githubusercontent.com/102979899/167237488-203c4e73-28d2-4cda-a3a7-51b22a03cb5a.png)
